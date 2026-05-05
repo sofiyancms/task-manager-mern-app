@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { fetchTaskByIdApi, updateTaskApi } from "../api/taskApi";
 import TaskForm from "../components/TaskForm";
 import { useAuth } from "../context/AuthContext";
@@ -8,6 +8,7 @@ export default function TaskEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const location = useLocation(); // Get the location object
   const isAdmin = user?.role === "admin";
 
   const [task, setTask] = useState(null);
@@ -17,7 +18,6 @@ export default function TaskEdit() {
     setError("");
     try {
       const res = await fetchTaskByIdApi(id);
-      // If admin-only populate is enabled, userId might be object; normalize to _id string
       const t = res.data;
       const normalizedUserId =
         t.userId && typeof t.userId === "object" ? t.userId._id : t.userId;
@@ -29,14 +29,19 @@ export default function TaskEdit() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const submit = async (payload) => {
     setError("");
     try {
       await updateTaskApi(id, payload);
-      navigate(`/tasks/${id}`, { replace: true });
+
+      // Redirect to either task list or task details based on the origin
+      if (location.state?.from === "taskList") {
+        navigate("/tasks", { replace: true }); // Go back to task list
+      } else {
+        navigate(`/tasks/${id}`, { replace: true }); // Stay on task details
+      }
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Update failed");
     }
@@ -53,7 +58,11 @@ export default function TaskEdit() {
         initialValues={task}
         isAdmin={isAdmin}
         onSubmit={submit}
-        onBack={() => navigate(`/tasks/${id}`)}
+        onBack={() =>
+          navigate(
+            location.state?.from === "taskList" ? "/tasks" : `/tasks/${id}`,
+          )
+        }
         submitLabel="Save"
       />
     </div>

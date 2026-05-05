@@ -19,14 +19,12 @@ export default function TaskDetails() {
       const res = await fetchTaskByIdApi(id);
       setTask(res.data);
     } catch (err) {
-      // ownership / not found → NotFound as per requirement
       navigate("/not-found", { replace: true });
     }
   };
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (!task && !error) return null;
@@ -80,13 +78,15 @@ export default function TaskDetails() {
         <div className="d-flex gap-2 mt-4">
           <button
             className="btn btn-outline-secondary"
-            onClick={() => navigate("/tasks")}
+            onClick={() => navigate("/tasks", { state: { from: "taskList" } })}
           >
-            Back
+            Back to List
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => navigate(`/tasks/${id}/edit`)}
+            onClick={() =>
+              navigate(`/tasks/${id}/edit`, { state: { from: "taskDetails" } })
+            }
           >
             Edit
           </button>

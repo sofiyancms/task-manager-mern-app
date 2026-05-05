@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { fetchUsersApi } from "../api/userApi";
+import { useAuth } from "../context/AuthContext";
 
 export default function TaskForm({
   initialValues,
@@ -7,30 +9,92 @@ export default function TaskForm({
   onBack,
   submitLabel,
 }) {
+  const { user } = useAuth();
+  const meId = user?.userId || user?._id;
+
+  // Initialize form state with default values and today's date for dueDate
   const [form, setForm] = useState({
     title: initialValues.title || "",
     description: initialValues.description || "",
     status: initialValues.status || "pending",
     priority: initialValues.priority || "medium",
-    dueDate: initialValues.dueDate ? initialValues.dueDate.slice(0, 10) : "",
+    dueDate: initialValues.dueDate
+      ? initialValues.dueDate.slice(0, 10)
+      : new Date().toISOString().slice(0, 10), // Default to today's date
     userId: initialValues.userId || "",
   });
+
+  const [users, setUsers] = useState([]);
+  const [usersError, setUsersError] = useState("");
+
+  // Load users only for admins
+  useEffect(() => {
+    const run = async () => {
+      if (!isAdmin) return;
+
+      setUsersError("");
+      try {
+        // Fetch users for dropdown
+        const res = await fetchUsersApi({ page: 1, limit: 200 });
+        const list = res?.data || [];
+
+        // Place the logged-in user at the top of the list
+        const me = meId ? list.find((u) => u._id === meId) : null;
+        const others = meId ? list.filter((u) => u._id !== meId) : list;
+        const ordered = me ? [me, ...others] : list;
+
+        setUsers(ordered);
+
+        // Default assignment to the logged-in user (admin) or first user
+        setForm((p) => ({
+          ...p,
+          userId: p.userId || meId || ordered[0]?._id || "",
+        }));
+      } catch (e) {
+        setUsersError(
+          e?.response?.data?.message || e?.message || "Failed to load users",
+        );
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, meId]);
 
   const change = (e) =>
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const submit = async (e) => {
     e.preventDefault();
+
+    // Build payload to submit the task form
     const payload = {
       title: form.title,
       description: form.description,
       status: form.status,
       priority: form.priority,
       dueDate: form.dueDate ? form.dueDate : null,
-      ...(isAdmin && form.userId ? { userId: form.userId } : {}),
     };
+
+    if (isAdmin) {
+      // Admin can assign a user, or it defaults to self
+      if (form.userId) payload.userId = form.userId;
+      else if (meId) payload.userId = meId;
+      // If no userId, send without userId and backend will decide
+    }
+
     await onSubmit(payload);
   };
+
+  // Update form if initialValues change (including dueDate)
+  useEffect(() => {
+    setForm((prevForm) => ({
+      ...prevForm,
+      dueDate: initialValues.dueDate
+        ? initialValues.dueDate.slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+    }));
+  }, [initialValues]);
 
   return (
     <div className="card shadow-sm">
@@ -101,18 +165,34 @@ export default function TaskForm({
 
             {isAdmin && (
               <div className="col-12">
-                <label className="form-label">
-                  Assign to userId (optional)
-                </label>
-                <input
-                  className="form-control"
+                <label className="form-label">Assign To</label>
+
+                {usersError && (
+                  <div className="text-danger small mb-1">{usersError}</div>
+                )}
+
+                <select
+                  className="form-select"
                   name="userId"
-                  value={form.userId}
+                  value={form.userId || ""}
                   onChange={change}
-                  placeholder="Paste userId to assign"
-                />
+                  disabled={users.length === 0}
+                >
+                  {users.length === 0 ? (
+                    <option value="">
+                      {usersError ? "Unable to load users" : "Loading users..."}
+                    </option>
+                  ) : (
+                    users.map((u) => (
+                      <option key={u._id} value={u._id}>
+                        {u.name} ({u.email}){u._id === meId ? " — me" : ""}
+                      </option>
+                    ))
+                  )}
+                </select>
+
                 <div className="form-text">
-                  Leave empty to assign to yourself (backend default).
+                  Default is you. Choose another user to assign.
                 </div>
               </div>
             )}

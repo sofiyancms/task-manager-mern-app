@@ -1,15 +1,29 @@
-import React from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useState, useEffect } from "react";
 
 export default function Navbar() {
   const { isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const [logoutMessage, setLogoutMessage] = useState(""); // State for logout message
+
   const onLogout = () => {
     logout();
+    setLogoutMessage("Successfully logged out!"); // Set the message when user logs out
     navigate("/login", { replace: true });
   };
+
+  // Use effect to clear the logout message after a short delay
+  useEffect(() => {
+    if (logoutMessage) {
+      const timer = setTimeout(() => {
+        setLogoutMessage(""); // Clear the message after 3 seconds
+      }, 3000);
+
+      return () => clearTimeout(timer); // Clean up the timer on component unmount
+    }
+  }, [logoutMessage]);
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -87,6 +101,13 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      {/* Show logout message */}
+      {logoutMessage && (
+        <div className="alert alert-success mt-3" role="alert">
+          {logoutMessage}
+        </div>
+      )}
     </nav>
   );
 }
